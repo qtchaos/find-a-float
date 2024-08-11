@@ -34,7 +34,7 @@ for (const target of buildTargets) {
     console.log("=============================");
     try {
         console.log(`[*] Building for ${target}`);
-        await $`bun build --compile --target=bun-${target} --minify ./index.ts  --outfile=dist/find-a-float-${target}`.quiet();
+        await $`bun build --compile --target=bun-${target} --sourcemap --minify ./index.ts  --outfile=dist/find-a-float-${target}`.quiet();
         console.log(`[!] Successfully built for ${target}`);
     } catch (e) {
         console.log(`[X] Failed to build for ${target}`);
