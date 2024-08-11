@@ -1,0 +1,17 @@
+{
+    "name": "find-a-float",
+    "version": "1.0.0",
+    "description": "Polls the CS2 Steam Market for your search query and returns all listings that fit the specified criteria.",
+    "author": {
+        "name": "qtchaos",
+        "url": "https://github.com/qtchaos/find-a-float"
+    },
+    "module": "index.ts",
+    "devDependencies": {
+        "@types/bun": "latest"
+    },
+    "peerDependencies": {
+        "typescript": "^5.0.0"
+    },
+    "type": "module"
+}
