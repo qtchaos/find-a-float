@@ -1,4 +1,4 @@
-# find-a-float [![Download executable](https://img.shields.io/badge/download-.exe-red)](https://github.com/qtchaos/find-a-float/releases/latest/download/find-a-float.exe)
+# find-a-float [![Download executable](https://img.shields.io/badge/download-.exe-red)](https://github.com/qtchaos/find-a-float/releases/latest/download/find-a-float-windows-x64-modern.exe)
 
 Finds the lowest (or highest) float listings for a specific skin on the Steam Community Market for the Counter-Strike 2.
 
