@@ -39,6 +39,7 @@ Sorted from expected ETA (earliest first):
 -   [ ] Add support for different currencies
 -   [ ] Add min and max price ranges
 -   [ ] Add ignore list for listings
+-   [ ] Scrape pages older than the current one for more listings
 -   [ ] Add support for different target types (e.g. "between")
 -   [ ] Web interface...?
 -   [ ] Auto-buy listings
