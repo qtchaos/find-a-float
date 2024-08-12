@@ -40,25 +40,24 @@ export async function loginAndGetCookies(): Promise<AuthenticatedSteamResponse> 
 
     const {challenge_url, client_id, request_id} = await fetch("https://api.steampowered.com/IAuthenticationService/BeginAuthSessionViaQR/v1/", requestOptions)
         .then((response: Response) => response.text().then((text) => JSON.parse(text)["response"]))
-    
-    const qrCode = new URL("https://api.qrserver.com/v1/create-qr-code");
-    qrCode.searchParams.set("size", "250x250");
-    qrCode.searchParams.set("color", "212328");
-    qrCode.searchParams.set("data", String(challenge_url));
 
     // Replace the placeholders in the HTML
-    modifiableHTML = modifiableHTML.replace("QR_CODE_URL", qrCode.toString());
     modifiableHTML = modifiableHTML.replaceAll("PACKAGE_VERSION", _package.version);
     modifiableHTML = modifiableHTML.replace("LOGIN_TIMEOUT", loginTimeout.toString());
 
+    // Spawn a server so that we can serve the up-to-date QR code to the webview
+    const server = new Worker("./auth-server.ts");
+    server.postMessage(challenge_url);
+
     // Spawn the Webview worker so that we don't block the main thread
-    const worker = new Worker("./webview.ts");
-    worker.addEventListener("message", (event) => {
+    const webview = new Worker("./webview.ts");
+    webview.addEventListener("message", (event) => {
         // Worker is initialising, send the HTML to it
         if (event.data === "requestingHTML") {
-            worker.postMessage({ html: modifiableHTML });
+            webview.postMessage({ html: modifiableHTML });
         }
     });
+    
 
     // Return a promise that resolves when the authenticated event fires
     return new Promise(async (resolve, _) => {
@@ -69,8 +68,14 @@ export async function loginAndGetCookies(): Promise<AuthenticatedSteamResponse> 
                 mentionedOnce = true;
             } else if (response["access_token"]) {
                 console.log("[*] Authenticated successfully!");
+                webview.terminate();
+                server.terminate();
+
                 resolve(response);
                 break;
+            } else if (response["new_challenge_url"]) {
+                server.postMessage(response["new_challenge_url"]);
+                continue;
             }
 
             await new Promise((resolve) => setTimeout(resolve, 1000));

@@ -459,6 +459,11 @@ async function checkAndGetArgs(): Promise<Args> {
 async function checkForUpdates() {
     const currentVersion = _package.version;
     const response = await fetch("https://api.github.com/repos/qtchaos/find-a-float/releases/latest");
+    if (response.status !== 200) {
+        console.log("[!] Failed to check for updates, please try again later");
+        return;
+    }
+    
     const latestVersion = JSON.parse(await response.text()).tag_name;
 
     if (Number(currentVersion.replaceAll(".", "")) < Number(latestVersion.replace("v", "").replaceAll(".", ""))) {
