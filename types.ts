@@ -46,24 +46,46 @@ export type CompleteListing = ListingInfo & {
     specialType: SpecialType | null;
 };
 
-// Contributions are welcome, if you feel that there is a currency that is missing, please open an issue or PR
+// https://partner.steamgames.com/doc/store/pricing/currencies#ecurrency_values
 export enum SteamCurrency {
-    USD = "1", // US Dollar
-    GBP = "2", // Pound sterling
-    EUR = "3", // Euro
-    RUB = "5", // Russian ruble
-    PLN = "6", // Polish złoty
-    BRL = "7", // Brazilian real
-    UAH = "18", // Ukrainian hryvnia
-    CDN = "20", // Canadian dollar
-    AUD = "21", // Australian dollar
-    NZD = "22", // New Zealand dollar
-    CNY = "23", // Chinese yuan
-    HKD = "29", // Hong Kong dollar
-    NTD = "30", // New Taiwan dollar
+    USD = "1", // United States Dollar
+    GBP = "2", // United Kingdom Pound
+    EUR = "3", // European Union Euro
+    CHF = "4", // Swiss Francs
+    RUB = "5", // Russian Rouble
+    PLN = "6", // Polish Złoty
+    BRL = "7", // Brazilian Reals
+    JPY = "8", // Japanese Yen
+    NOK = "9", // Norwegian Krone
+    IDR = "10", // Indonesian Rupiah
+    MYR = "11", // Malaysian Ringgit
+    PHP = "12", // Philippine Peso
+    SGD = "13", // Singapore Dollar
+    THB = "14", // Thai Baht
+    VND = "15", // Vietnamese Dong
+    KRW = "16", // South Korean Won
+    UAH = "18", // Ukrainian Hryvnia
+    MXN = "19", // Mexican Peso
+    CDN = "20", // Canadian Dollars
+    AUD = "21", // Australian Dollars
+    NZD = "22", // New Zealand Dollar
+    CNY = "23", // Chinese Renminbi (yuan)
+    INR = "24", // Indian Rupee
+    CLP = "25", // Chilean Peso
+    PEN = "26", // Peruvian Sol
+    COP = "27", // Colombian Peso
+    ZAR = "28", // South African Rand
+    HKD = "29", // Hong Kong Dollar
+    NTD = "30", // New Taiwan Dollar
+    SAR = "31", // Saudi Riyal
+    AED = "32", // United Arab Emirates Dirham
     ILS = "35", // New Israeli shekel
+    KZT = "37", // Kazakhstani Tenge
+    KWD = "38", // Kuwaiti Dinar
+    QAR = "39", // Qatari Riyal
+    CRC = "40", // Costa Rican Colón
+    UYU = "41", // Uruguayan Peso
 }
-
 export type ListingInfo = {
     listingid: string;
     price: number;
