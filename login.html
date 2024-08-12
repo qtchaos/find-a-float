@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <link
+            rel="shortcut icon"
+            href="https://steamcommunity.com/favicon.ico"
+        />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <style>
+            @font-face {
+                font-family: "Motiva Sans";
+                src: url("https://community.akamai.steamstatic.com/public/shared/fonts/MotivaSans-Bold.ttf?v=4.015")
+                    format("truetype");
+                font-weight: bold;
+                font-style: normal;
+            }
+            @font-face {
+                font-family: "Motiva Sans";
+                src: url("https://community.akamai.steamstatic.com/public/shared/fonts/MotivaSans-Regular.ttf?v=4.015")
+                    format("truetype");
+                font-weight: normal;
+                font-style: normal;
+            }
+            @keyframes transformAcross {
+                0% {
+                    background-position: 0% 0%;
+                }
+                100% {
+                    background-position: 100% 100%;
+                }
+            }
+            body {
+                color: rgb(235, 236, 247);
+                font-family: "Motiva Sans", sans-serif;
+                transition: all 0.5s ease;
+                background-image: url("https://community.akamai.steamstatic.com/public/shared/images/joinsteam/new_login_bg_strong_mask.jpg");
+                background-color: #181a21;
+                animation: transformAcross 240s ease infinite;
+                position: relative;
+                overflow: hidden;
+                user-select: none;
+            }
+            body::before,
+            body::after {
+                content: "";
+                position: absolute;
+                top: -10vh;
+                bottom: 0;
+                height: 150vh;
+                width: 25%;
+                background-color: #181a21e0;
+                z-index: 1;
+                filter: blur(20px);
+            }
+            body::before {
+                left: -10vw;
+            }
+            body::after {
+                right: -10vw;
+            }
+            img {
+                margin-top: 50px;
+                margin-left: auto;
+                margin-right: auto;
+                display: block;
+                border-radius: 5%;
+                border: 20px solid white;
+                box-shadow: 0 0 10px #000000;
+                transition: all 0.5s ease;
+                background: white;
+                user-select: none;
+            }
+            h1 {
+                text-align: center;
+                margin-top: 50px;
+                font-weight: bold;
+                z-index: 2;
+                color: #1999ff;
+                transition: all 0.5s ease;
+            }
+            p {
+                text-align: center;
+                margin-top: 20px;
+                margin-bottom: 50px;
+                margin-left: 15%;
+                margin-right: 15%;
+                font-weight: normal;
+                z-index: 2;
+                transition: all 0.5s ease;
+            }
+            a {
+                color: #1999ff;
+                text-decoration: none;
+            }
+            #footer {
+                z-index: 2;
+                bottom: -11.5vh;
+                position: absolute;
+                left: 0;
+                right: 0;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                font-size: 12px;
+            }
+            #warning {
+                color: #f04037;
+                font-weight: bold;
+                opacity: 0;
+                transition: opacity 0.5s ease;
+            }
+            svg {
+                vertical-align: middle;
+            }
+        </style>
+    </head>
+    <body onload="main()">
+        <h1>Sign in with Steam</h1>
+        <p>
+            Scan the QR code with your Steam mobile app to sign in, this is
+            required so we can allow you to auto-buy listings.
+        </p>
+        <img src="QR_CODE_URL" width="250" height="250" draggable="false" />
+        <div id="footer">
+            <div>
+                find-a-float vPACKAGE_VERSION by
+                <a href="https://github.com/qtchaos" target="_blank">qtchaos</a>
+            </div>
+            <div id="warning">
+                <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="-2 -3 24 24"
+                >
+                    <path
+                        fill="currentColor"
+                        d="m12.8 1.613l6.701 11.161c.963 1.603.49 3.712-1.057 4.71a3.213 3.213 0 0 1-1.743.516H3.298C1.477 18 0 16.47 0 14.581c0-.639.173-1.264.498-1.807L7.2 1.613C8.162.01 10.196-.481 11.743.517c.428.276.79.651 1.057 1.096m-2.22.839a1.077 1.077 0 0 0-1.514.365L2.365 13.98a1.17 1.17 0 0 0-.166.602c0 .63.492 1.14 1.1 1.14H16.7c.206 0 .407-.06.581-.172a1.164 1.164 0 0 0 .353-1.57L10.933 2.817a1.12 1.12 0 0 0-.352-.365zM10 14a1 1 0 1 1 0-2a1 1 0 0 1 0 2m0-9a1 1 0 0 1 1 1v4a1 1 0 0 1-2 0V6a1 1 0 0 1 1-1"
+                    />
+                </svg>
+                Outdated!
+            </div>
+        </div>
+    </body>
+    <script>
+        async function main() {
+            const currentVersion = "PACKAGE_VERSION";
+            const response = await fetch(
+                "https://api.github.com/repos/qtchaos/find-a-float/releases/latest"
+            );
+            const latestVersion = JSON.parse(await response.text()).tag_name;
+            if (
+                Number(currentVersion.replaceAll(".", "")) <
+                Number(latestVersion.replace("v", "").replaceAll(".", ""))
+            ) {
+                document.getElementById("warning").style.opacity = "1";
+            }
+
+            startTimer();
+        }
+
+        function startTimer() {
+            setTimeout(() => {
+                const h1 = document.getElementsByTagName("h1")[0];
+                h1.innerText = "Sign in expired";
+                h1.style.color = "#f04037";
+
+                const p = document.getElementsByTagName("p")[0];
+                p.innerText =
+                    "You took too long to login so the QR code is no longer valid, please restart the login process to try again.";
+
+                const img = document.getElementsByTagName("img")[0];
+                img.style.filter = "blur(5px)";
+            }, LOGIN_TIMEOUT);
+        }
+    </script>
+</html>

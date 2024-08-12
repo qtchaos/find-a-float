@@ -13,6 +13,7 @@ import {
 } from "./types";
 
 import os from "os";
+import { checkLoginStatus, loginAndGetCookies } from "./auth";
 
 const spacer = "    ";
 const steamBaseURL = "https://steamcommunity.com/market/listings/730/";
@@ -21,7 +22,8 @@ let globalCache: number[] = [];
 async function getItemFromSteam(
     gunName: string,
     skinName: string,
-    itemCondition: ItemCondition
+    itemCondition: ItemCondition,
+    currency: SteamCurrency
 ): Promise<SteamAPIResponse> {
     const fetchURL = new URL(
         `${steamBaseURL}${gunName} | ${skinName} (${itemCondition})/render`
@@ -30,7 +32,7 @@ async function getItemFromSteam(
     fetchURL.searchParams.append("count", "100");
 
     // The currency param changes the converted_* values to the currency of the user's choice.
-    fetchURL.searchParams.append("currency", args.currency);
+    fetchURL.searchParams.append("currency", currency);
     fetchURL.searchParams.append("language", "english");
 
     const APIResponse = await fetch(fetchURL, {
@@ -71,7 +73,8 @@ async function getListingsByTargetType(args: Args): Promise<CompleteListing[]> {
     const itemInfo = await getItemFromSteam(
         args.gunName,
         args.skinName,
-        args.itemCondition
+        args.itemCondition,
+        args.currency
     );
 
     if (
@@ -291,7 +294,7 @@ function formatGunName(
     }${gunName}`;
 }
 
-function checkAndGetArgs(): Args {
+async function checkAndGetArgs(): Promise<Args> {
     const friendlyCurrencies = Object.keys(SteamCurrency).join(", ");
     const rawArgs = Bun.argv;
     let parsedArgs: arg.Result<{
@@ -333,6 +336,12 @@ function checkAndGetArgs(): Args {
             alias: "-i",
             description: "Polling interval in milliseconds",
         },
+        {
+            name: "--login",
+            type: arg.COUNT,
+            alias: "-l",
+            description: "How much to force the login by, 1 = check cache, 2 = force new login",
+        }
     ];
 
     try {
@@ -348,6 +357,16 @@ function checkAndGetArgs(): Args {
     } catch (e) {
         console.log(`[X] ${String(e)}`);
         process.exit(1);
+    }
+
+    // This is placed early so we can avoid arg length checks for quicker debugging
+    if (parsedArgs["--login"] === 1) {
+        console.log("[*] Checking cache for login...");
+        const resp = await checkLoginStatus();
+        console.log(`[!] Logged in as ${resp.account_name}`);
+    } else if (parsedArgs["--login"] > 1) {
+        console.log("[*] Forcing new login...");
+        await loginAndGetCookies();
     }
 
     // If running the compiled version, we need to make the file path more readable
@@ -433,6 +452,7 @@ function checkAndGetArgs(): Args {
         pollInterval,
         overrideListingCheck: Boolean(parsedArgs["--certain"]),
         currency,
+        login: Boolean(parsedArgs["--login"]),
     };
 }
 
@@ -447,29 +467,33 @@ async function checkForUpdates() {
     }
 }
 
+function prettyPrintListings(listings: CompleteListing[], currency: SteamCurrency) {
+    const currencyCode = Object.keys(SteamCurrency).find(
+        (key) => SteamCurrency[key as keyof typeof SteamCurrency] === currency
+    );
+
+    console.log("[!] Found listings:");
+    listings.forEach(async (listing) => {
+        const price = (listing.converted_price + listing.converted_fee) / 100;
+        let header = `${spacer}-> ${listing.listingid}`;
+        if (listing.specialType !== undefined) {
+            header += ` ${listing.specialType}`;
+        }
+
+        console.log(header);
+        console.log(`${spacer.repeat(2)}Price: ${price} ${currencyCode}`);
+        console.log(`${spacer.repeat(2)}Float: ${listing.float}`);
+        console.log(`${spacer.repeat(2)}Inspect URL: ${listing.inspectURL}`);
+        console.log(`${spacer.repeat(2)}Link To Buy: ${listing.buyLink}`);
+    });
+}
+
 await checkForUpdates();
-const args = checkAndGetArgs();
-const currencyCode = Object.keys(SteamCurrency).find(
-    (key) => SteamCurrency[key as keyof typeof SteamCurrency] === args.currency
-);
+const args = await checkAndGetArgs();
 
 console.log(
     `[*] Selected: ${args.gunName} | ${args.skinName} (${args.itemCondition}) with a float of ${args.targetType} ${args.targetFloat}`
 );
 
 const listings = await pollListingsForTarget(args);
-console.log("[!] Found listings:");
-
-listings.forEach(async (listing) => {
-    const price = (listing.converted_price + listing.converted_fee) / 100;
-    let header = `${spacer}-> ${listing.listingid}`;
-    if (listing.specialType !== undefined) {
-        header += ` ${listing.specialType}`;
-    }
-
-    console.log(header);
-    console.log(`${spacer.repeat(2)}Price: ${price} ${currencyCode}`);
-    console.log(`${spacer.repeat(2)}Float: ${listing.float}`);
-    console.log(`${spacer.repeat(2)}Inspect URL: ${listing.inspectURL}`);
-    console.log(`${spacer.repeat(2)}Link To Buy: ${listing.buyLink}`);
-});
+prettyPrintListings(listings, args.currency);

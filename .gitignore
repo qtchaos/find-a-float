@@ -2,3 +2,5 @@ node_modules
 float*
 dist
 .*.tmp
+*.tmp
+*.exe

@@ -32,6 +32,7 @@ export type Args = {
     pollInterval: number;
     overrideListingCheck: boolean;
     currency: SteamCurrency;
+    login: boolean;
 };
 
 export enum SpecialType {
@@ -45,6 +46,16 @@ export type CompleteListing = ListingInfo & {
     buyLink: string;
     specialType: SpecialType | null;
 };
+
+export type LoginResponse = {
+    refresh_token: string;
+    access_token: string;
+    account_name: string;
+};
+
+export type AuthenticatedSteamResponse = {
+    had_remote_interaction: boolean;
+} & LoginResponse;
 
 // https://partner.steamgames.com/doc/store/pricing/currencies#ecurrency_values
 export enum SteamCurrency {
@@ -86,6 +97,7 @@ export enum SteamCurrency {
     CRC = "40", // Costa Rican Colón
     UYU = "41", // Uruguayan Peso
 }
+
 export type ListingInfo = {
     listingid: string;
     price: number;
