@@ -23,6 +23,47 @@ export type Asset = {
     }[];
 };
 
+export type Args = {
+    gunName: string;
+    skinName: string;
+    itemCondition: ItemCondition;
+    targetFloat: number;
+    targetType: TargetType;
+    pollInterval: number;
+    overrideListingCheck: boolean;
+    currency: SteamCurrency;
+};
+
+export enum SpecialType {
+    LowestPrice = "↯ (Lowest Price)",
+    HighestPrice = "⇡ (Highest Price)",
+}
+
+export type CompleteListing = ListingInfo & {
+    float: number;
+    inspectURL: string;
+    buyLink: string;
+    specialType: SpecialType | null;
+};
+
+// Contributions are welcome, if you feel that there is a currency that is missing, please open an issue or PR
+export enum SteamCurrency {
+    USD = "1", // US Dollar
+    GBP = "2", // Pound sterling
+    EUR = "3", // Euro
+    RUB = "5", // Russian ruble
+    PLN = "6", // Polish złoty
+    BRL = "7", // Brazilian real
+    UAH = "18", // Ukrainian hryvnia
+    CDN = "20", // Canadian dollar
+    AUD = "21", // Australian dollar
+    NZD = "22", // New Zealand dollar
+    CNY = "23", // Chinese yuan
+    HKD = "29", // Hong Kong dollar
+    NTD = "30", // New Taiwan dollar
+    ILS = "35", // New Israeli shekel
+}
+
 export type ListingInfo = {
     listingid: string;
     price: number;

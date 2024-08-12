@@ -1,16 +1,18 @@
+import arg from "arg";
+import _package from "./package.json" with {type: "json"};
 import {
     ItemCondition,
     type SteamAPIResponse,
     type ListingInfo,
     TargetType,
     type CSFloatResponse,
+    SteamCurrency,
+    type Args,
+    type CompleteListing,
+    SpecialType,
 } from "./types";
 
 import os from "os";
-
-// Update this if the exchange rate changes by a large margin, currency conversion APIs are expensive :)
-// TODO: Add currency flag and pass to Steam API
-const usd2eur = 1.09;
 
 const spacer = "    ";
 const steamBaseURL = "https://steamcommunity.com/market/listings/730/";
@@ -27,9 +29,8 @@ async function getItemFromSteam(
 
     fetchURL.searchParams.append("count", "100");
 
-    // 2 = USD
-    // 3 = EUR
-    fetchURL.searchParams.append("currency", "2");
+    // The currency param changes the converted_* values to the currency of the user's choice.
+    fetchURL.searchParams.append("currency", args.currency);
     fetchURL.searchParams.append("language", "english");
 
     const APIResponse = await fetch(fetchURL, {
@@ -65,23 +66,18 @@ async function getInspectFloat(inspectURL: string) {
     return CSFloatResponse.iteminfo.floatvalue;
 }
 
-async function getListingsByTargetType(
-    targetType: TargetType,
-    gunName: string,
-    skinName: string,
-    itemCondition: ItemCondition,
-    targetFloat: number,
-    overrideListingCheck: boolean
-): Promise<
-    (ListingInfo & { float: number; inspectURL: string; buyLink: string })[]
-> {
+async function getListingsByTargetType(args: Args): Promise<CompleteListing[]> {
     // Get Item info and sort listings by price to get a nicer output
-    const itemInfo = await getItemFromSteam(gunName, skinName, itemCondition);
+    const itemInfo = await getItemFromSteam(
+        args.gunName,
+        args.skinName,
+        args.itemCondition
+    );
 
     if (
         itemInfo.total_count === 0 &&
         itemInfo.success === true &&
-        !overrideListingCheck
+        !args.overrideListingCheck
     ) {
         console.log(
             "[?] No listings found for the given item and condition combo!"
@@ -104,7 +100,7 @@ async function getListingsByTargetType(
 
             globalCache.push(Number(listing.listingid));
             const completeName = encodeURIComponent(
-                `${gunName} | ${skinName} (${itemCondition})`
+                `${args.gunName} | ${args.skinName} (${args.itemCondition})`
             );
 
             return {
@@ -124,53 +120,54 @@ async function getListingsByTargetType(
 
     // If the target type is under, reverse the listings to get the highest float first
     // @ts-ignore
-    if (targetType === TargetType.Under) {
+    if (args.targetType === TargetType.Under) {
         floatedListings = floatedListings.reverse();
     }
 
     const filteredListings = floatedListings.filter((listing) => {
-        if (targetType === TargetType.Over) {
-            return listing!.float > targetFloat;
+        if (args.targetType === TargetType.Over) {
+            return listing!.float > args.targetFloat;
         } else {
-            return listing!.float < targetFloat;
+            return listing!.float < args.targetFloat;
         }
     });
 
     return filteredListings.filter(
         (listing) => listing !== null
-    ) as (ListingInfo & {
-        float: number;
-        inspectURL: string;
-        buyLink: string;
-    })[];
+    ) as CompleteListing[];
 }
 
-async function pollListingsForTarget(
-    targetType: TargetType,
-    gunName: string,
-    skinName: string,
-    itemCondition: ItemCondition,
-    targetFloat: number,
-    pollInterval: number,
-    overrideListingCheck: boolean
-) {
+async function pollListingsForTarget(args: Args) {
     while (true) {
         console.log("[*] Polling for listings...");
-        const listings = await getListingsByTargetType(
-            targetType,
-            gunName,
-            skinName,
-            itemCondition,
-            targetFloat,
-            overrideListingCheck
-        );
+        const listings = await getListingsByTargetType(args);
 
         // If there are listings, return them
         if (listings.length > 0) {
+            const lowestPriceListing = listings.reduce((acc, listing) => {
+                return acc.converted_price < listing.converted_price
+                    ? acc
+                    : listing;
+            }).listingid;
+
+            const highestPriceListing = listings.reduce((acc, listing) => {
+                return acc.converted_price > listing.converted_price
+                    ? acc
+                    : listing;
+            }).listingid;
+
+            listings.forEach(async (listing) => {
+                if (listing.listingid === lowestPriceListing) {
+                    listing.specialType = SpecialType.LowestPrice;
+                } else if (listing.listingid === highestPriceListing) {
+                    listing.specialType = SpecialType.HighestPrice;
+                }
+            });
+
             return listings;
         }
 
-        await new Promise((resolve) => setTimeout(resolve, pollInterval));
+        await new Promise((resolve) => setTimeout(resolve, args.pollInterval));
     }
 }
 
@@ -227,9 +224,26 @@ function mapItemCondition(
     process.exit(1);
 }
 
-function formatGunName(gunName: string, isStattrak: boolean) {
+function formatGunName(
+    gunName: string,
+    isStattrak: boolean,
+    isSouvenir: boolean
+) {
+    // All gloves that have a "Gloves" at the end of them
+    const needsGlovesAppend = [
+        "Bloodhound",
+        "Broken Fang",
+        "Driver",
+        "Hydra",
+        "Moto",
+        "Specialist",
+        "Sport",
+    ];
+    const allGloves = ["Hand Wraps", ...needsGlovesAppend];
+    const isGlove = allGloves.includes(gunName.replace(/ Gloves/g, ""));
+
     // All knives that have a "Knife" at the end of them
-    const needsAppend = [
+    const needsKnivesAppend = [
         "Bowie",
         "Butterfly",
         "Classic",
@@ -252,118 +266,209 @@ function formatGunName(gunName: string, isStattrak: boolean) {
         "Karambit",
         "M9 Bayonet",
         "Shadow Daggers",
-        ...needsAppend,
+        ...needsKnivesAppend,
     ];
+    const isKnife = allKnives.includes(gunName.replace(/ Knife/g, ""));
 
-    const isKnife = allKnives.includes(gunName);
     if (
         isKnife &&
         !gunName.includes("Knife") &&
-        needsAppend.includes(gunName)
+        needsKnivesAppend.includes(gunName)
     ) {
         gunName += " Knife";
+    } else if (
+        isGlove &&
+        !gunName.includes("Gloves") &&
+        needsGlovesAppend.includes(gunName)
+    ) {
+        gunName += " Gloves";
     }
 
-    return `${isKnife ? "★ " : ""}${isStattrak ? "StatTrak™ " : ""}${gunName}`;
+    const hasStar = isKnife || isGlove;
+
+    return `${hasStar ? "★ " : ""}${isSouvenir ? "Souvenir " : ""}${
+        isStattrak ? "StatTrak™ " : ""
+    }${gunName}`;
 }
 
-function checkAndGetArgs() {
-    const args = Bun.argv;
+function checkAndGetArgs(): Args {
+    const friendlyCurrencies = Object.keys(SteamCurrency).join(", ");
+    const rawArgs = Bun.argv;
+    let parsedArgs: arg.Result<{
+        [key: string]: any;
+    }>;
+
+    const availableFlags = [
+        {
+            name: "--help",
+            type: Boolean,
+            alias: "-h",
+            description: "Show this help message",
+        },
+        {
+            name: "--stattrak",
+            type: Boolean,
+            alias: "-s",
+            description: "Use the StatTrak™ version of the item",
+        },
+        {
+            name: "--souvenir",
+            type: Boolean,
+            description: "Use the souvenir version of the item",
+        },
+        {
+            name: "--currency",
+            type: String,
+            alias: "-c",
+            description: `The currency to use for the listings, must be one of the following: ${friendlyCurrencies}`,
+        },
+        {
+            name: "--certain",
+            type: Boolean,
+            description: "Override the listing check",
+        },
+        {
+            name: "--interval",
+            type: Number,
+            alias: "-i",
+            description: "Polling interval in milliseconds",
+        },
+    ];
+
+    try {
+        const argConfig: { [key: string]: any } = {};
+        availableFlags.forEach((flag) => {
+            argConfig[flag.name] = flag.type;
+            if (flag.alias) {
+                argConfig[flag.alias] = flag.name;
+            }
+        });
+
+        parsedArgs = arg(argConfig);
+    } catch (e) {
+        console.log(`[X] ${String(e)}`);
+        process.exit(1);
+    }
 
     // If running the compiled version, we need to make the file path more readable
-    if (args[1].includes("~BUN")) {
-        args[1] = `.\\${args[1].split("root/")[1]}${
+    if (rawArgs[1].includes("~BUN")) {
+        rawArgs[1] = `.\\${rawArgs[1].split("root/")[1]}${
             os.platform() === "win32" ? ".exe" : ""
         }`;
     } else {
-        args[1] = `bun ${args[1]}`;
+        rawArgs[1] = `bun ${rawArgs[1]}`;
     }
 
-    if (args.length < 6) {
+    if (parsedArgs["_"].length != 4 || parsedArgs["--help"]) {
         console.log(
-            `Usage: ${args[1]} "<gunName>" "<skinName>" <targetFloat> <targetType (over/under)> [pollInterval (ms)] [flags]`
+            `Usage: ${rawArgs[1]} "<gunName>" "<skinName>" <targetFloat> <targetType (over/under)> [flags]`
         );
+
+        // Print all available flags
+        availableFlags.forEach((flag) => {
+            console.log(
+                `${spacer}${flag.name}${flag.alias ? `, ${flag.alias}` : ""}${
+                    flag.type === Boolean ? "" : " <value>"
+                }${flag.description ? `: ${flag.description}` : ""}`
+            );
+        });
+
         process.exit(1);
     }
 
     // Map the targetType to the enum
     const targetType =
-        args[5].toLowerCase().split("")[0] === "o"
+        parsedArgs["_"][3].toLowerCase().split("")[0] === "o"
             ? TargetType.Over
             : TargetType.Under;
 
-    // Map the itemCondition to the enum
-    const targetFloat = Number(args[4]);
+    const targetFloat = Number(parsedArgs["_"][2]);
     const mappedItemCondition = mapItemCondition(targetFloat, targetType);
 
-    const isStattrak = args.includes("--stattrak");
+    const isStattrak = Boolean(parsedArgs["--stattrak"]);
 
-    // Check for invalid poll interval and set default
-    const pollInterval: number = !isNaN(Number(args[6]))
-        ? Number(args[6])
-        : 10000;
+    let pollInterval: number = 10000;
+    if (parsedArgs["--interval"] !== undefined) {
+        if (isNaN(Number(parsedArgs["--interval"]))) {
+            console.log(
+                "[X] The poll interval must be a number, continuing anyway with 1000ms..."
+            );
+        } else if (Number(parsedArgs["--interval"]) < 1000) {
+            console.log(
+                "[X] The poll interval must be at least 1000 ms, continuing anyway with 1000ms..."
+            );
+        } else {
+            pollInterval = Number(parsedArgs["--interval"]);
+        }
+    }
 
-    if (pollInterval < 1000) {
-        console.log(
-            "[X] The poll interval must be at least 1000 ms, otherwise you will get rate limited."
-        );
-        process.exit(1);
+    let currency: SteamCurrency = SteamCurrency.USD;
+    if (parsedArgs["--currency"] !== undefined) {
+        const stringToCurrency =
+            SteamCurrency[
+                String(
+                    parsedArgs["--currency"]
+                ).toUpperCase() as keyof typeof SteamCurrency
+            ];
+
+        if (stringToCurrency === undefined) {
+            console.log(
+                `[X] The currency must be one of the following: ${friendlyCurrencies}, continuing anyway with USD...`
+            );
+        } else {
+            currency = stringToCurrency;
+        }
     }
 
     return {
-        gunName: formatGunName(args[2], isStattrak),
-        skinName: args[3],
+        gunName: formatGunName(
+            parsedArgs["_"][0],
+            isStattrak,
+            Boolean(parsedArgs["--souvenir"])
+        ),
+        skinName: parsedArgs["_"][1],
         itemCondition: mappedItemCondition,
-        targetFloat: Number(args[4]),
+        targetFloat: Number(parsedArgs["_"][2]),
         targetType,
         pollInterval,
-        overrideListingCheck: args.includes("--certain"),
-        isStattrak,
+        overrideListingCheck: Boolean(parsedArgs["--certain"]),
+        currency,
     };
 }
 
+async function checkForUpdates() {
+    const currentVersion = _package.version;
+    const response = await fetch("https://api.github.com/repos/qtchaos/find-a-float/releases/latest");
+    const latestVersion = JSON.parse(await response.text()).tag_name;
+
+    if (Number(currentVersion.replaceAll(".", "")) < Number(latestVersion.replace("v", "").replaceAll(".", ""))) {
+        console.log(`[!] New version available: ${latestVersion}`);
+        console.log(`[!] Download it from https://github.com/qtchaos/find-a-float/releases/latest`);
+    }
+}
+
+await checkForUpdates();
 const args = checkAndGetArgs();
+const currencyCode = Object.keys(SteamCurrency).find(
+    (key) => SteamCurrency[key as keyof typeof SteamCurrency] === args.currency
+);
+
 console.log(
-    `[*] Selected: ${args.gunName} | ${args.skinName} (${args.itemCondition}) with a float of ${args.targetFloat} and a target type of ${args.targetType}`
+    `[*] Selected: ${args.gunName} | ${args.skinName} (${args.itemCondition}) with a float of ${args.targetType} ${args.targetFloat}`
 );
 
-const listings = await pollListingsForTarget(
-    args.targetType,
-    args.gunName,
-    args.skinName,
-    args.itemCondition,
-    args.targetFloat,
-    args.pollInterval,
-    args.overrideListingCheck
-);
-
+const listings = await pollListingsForTarget(args);
 console.log("[!] Found listings:");
-
-const lowestPriceListing = listings.reduce((acc, listing) => {
-    return acc.converted_price < listing.converted_price ? acc : listing;
-}).listingid;
-
-const highestPriceListing = listings.reduce((acc, listing) => {
-    return acc.converted_price > listing.converted_price ? acc : listing;
-}).listingid;
 
 listings.forEach(async (listing) => {
     const price = (listing.converted_price + listing.converted_fee) / 100;
-    console.log(
-        `${spacer}-> ${listing.listingid} ${
-            lowestPriceListing === listing.listingid
-                ? "↯ (Lowest Price)"
-                : highestPriceListing === listing.listingid
-                ? "⇡ (Highest Price)"
-                : ""
-        }`
-    );
+    let header = `${spacer}-> ${listing.listingid}`;
+    if (listing.specialType !== undefined) {
+        header += ` ${listing.specialType}`;
+    }
 
-    console.log(
-        `${spacer.repeat(2)}Price: ${price} USD ≈ ${(price * usd2eur).toFixed(
-            2
-        )} EUR`
-    );
+    console.log(header);
+    console.log(`${spacer.repeat(2)}Price: ${price} ${currencyCode}`);
     console.log(`${spacer.repeat(2)}Float: ${listing.float}`);
     console.log(`${spacer.repeat(2)}Inspect URL: ${listing.inspectURL}`);
     console.log(`${spacer.repeat(2)}Link To Buy: ${listing.buyLink}`);
