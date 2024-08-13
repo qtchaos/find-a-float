@@ -20,34 +20,39 @@ async function pollAuthStatus(client_id: string, request_id: string){
     });
 }
 
-export async function loginAndGetCookies(): Promise<AuthenticatedSteamResponse> {
-    let modifiableHTML: string = html;
-    const loginTimeout = 1000 * 60 * 5; // 5 Minute timeout
-
-    const myHeaders = new Headers();
-    myHeaders.append("Content-Type", "application/x-www-form-urlencoded");
-
+async function getChallenge() {
     const urlencoded = new URLSearchParams();
     urlencoded.append("device_friendly_name", "Galaxy S22");
     urlencoded.append("platform_type", "3");
 
     const requestOptions: RequestInit = {
         method: "POST",
-        headers: myHeaders,
+        headers: [
+            ["Content-Type", "application/x-www-form-urlencoded"],
+        ],
         body: urlencoded,
         redirect: "follow"
     };
 
-    const {challenge_url, client_id, request_id} = await fetch("https://api.steampowered.com/IAuthenticationService/BeginAuthSessionViaQR/v1/", requestOptions)
+    const { challenge_url, client_id, request_id } = await fetch("https://api.steampowered.com/IAuthenticationService/BeginAuthSessionViaQR/v1/", requestOptions)
         .then((response: Response) => response.text().then((text) => JSON.parse(text)["response"]))
+    
+    return { challengeURL: challenge_url, clientID: client_id, requestID: request_id };
+}
+
+export async function loginAndGetCookies(): Promise<AuthenticatedSteamResponse> {
+    let modifiableHTML: string = html;
+    const loginTimeout = 1000 * 60 * 1.5; // 1.5 Minute timeout
 
     // Replace the placeholders in the HTML
     modifiableHTML = modifiableHTML.replaceAll("PACKAGE_VERSION", _package.version);
     modifiableHTML = modifiableHTML.replace("LOGIN_TIMEOUT", loginTimeout.toString());
 
+    let { challengeURL, clientID, requestID } = await getChallenge();
+
     // Spawn a server so that we can serve the up-to-date QR code to the webview
     const server = new Worker("./auth-server.ts");
-    server.postMessage(challenge_url);
+    server.postMessage(challengeURL);
 
     // Spawn the Webview worker so that we don't block the main thread
     const webview = new Worker("./webview.ts");
@@ -60,9 +65,10 @@ export async function loginAndGetCookies(): Promise<AuthenticatedSteamResponse> 
     
 
     // Return a promise that resolves when the authenticated event fires
+    let startTime = Date.now();
     return new Promise(async (resolve, _) => {
         while (true) {
-            const response = await pollAuthStatus(client_id, request_id);
+            const response = await pollAuthStatus(clientID, requestID);
             if (response["had_remote_interaction"] === true && !response["account_name"] && !mentionedOnce) {
                 console.log("[*] Scanned QR code successfully!");
                 mentionedOnce = true;
@@ -76,6 +82,17 @@ export async function loginAndGetCookies(): Promise<AuthenticatedSteamResponse> 
             } else if (response["new_challenge_url"]) {
                 server.postMessage(response["new_challenge_url"]);
                 continue;
+            }
+
+            // If the timeout has been reached, restart the challenge to avoid it being stale
+            if (Date.now() - startTime > loginTimeout) {
+                startTime = Date.now();
+                console.log("[*] Restarting challenge...");
+                let newChallenge = await getChallenge();
+                
+                server.postMessage(newChallenge.challengeURL);
+                clientID = newChallenge.clientID;
+                requestID = newChallenge.requestID;
             }
 
             await new Promise((resolve) => setTimeout(resolve, 1000));

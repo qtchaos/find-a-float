@@ -176,7 +176,7 @@
 
         function refetchQR() {
             const img = document.getElementsByTagName("img")[0];
-            img.src = `http://localhost:8081/?${Math.random()}`;
+            img.src = `http://localhost:8081`;
 
             setTimeout(refetchQR, 1000);
         }

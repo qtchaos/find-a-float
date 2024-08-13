@@ -1,10 +1,10 @@
 declare var self: Worker;
 
-let challenge_url = "";
+let challengeURL = "";
 
 self.addEventListener("message", (event) => {
     console.log("[S] Received challenge URL");
-    challenge_url = event.data;
+    challengeURL = event.data;
 });
 
 Bun.serve({
@@ -12,7 +12,7 @@ Bun.serve({
         const qrCode = new URL("https://api.qrserver.com/v1/create-qr-code");
         qrCode.searchParams.set("size", "250x250");
         qrCode.searchParams.set("color", "212328");
-        qrCode.searchParams.set("data", String(challenge_url));
+        qrCode.searchParams.set("data", String(challengeURL));
         const image = await fetch(qrCode.toString()).then((res) =>
             res.arrayBuffer()
         );
@@ -21,6 +21,7 @@ Bun.serve({
         return new Response(png, {
             headers: {
                 "Content-Type": "image/png",
+                "Cache-Control": "no-store",
             },
         });
     },
